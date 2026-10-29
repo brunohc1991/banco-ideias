@@ -1,0 +1,146 @@
+@baseUrl = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+@password = Senha@12345
+@email = ia{{scenarioVersion}}@example.com
+
+### Cadastro do usuario
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Maria Silva", "email": "{{email}}", "password": "{{password}}" }
+
+### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{email}}", "password": "{{password}}" }
+
+###
+@token = {{login.response.body.token}}
+
+### Sem token
+# Esperado: 401
+POST {{baseUrl}}/ai/generate
+Content-Type: application/json
+
+{ "prompt": "Voce escreve descricoes curtas." }
+
+### Geracao apenas com prompt (requer ANTHROPIC_API_KEY real)
+# Esperado: 200 com { "text": "..." } nao vazio
+# Sem chave configurada: 502 com errors: ["ai.generate.failed"]
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "prompt": "Voce escreve descricoes curtas em portugues." }
+
+### Geracao com contexto e instrucao (requer ANTHROPIC_API_KEY real)
+# Esperado: 200 com { "text": "..." } levando em conta contexto e instrucao
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "prompt": "Voce ajuda a descrever um Tipo de Ideia em uma frase curta e em portugues.",
+  "context": "Nome: Roteiro viral",
+  "instruction": "Mencione videos curtos."
+}
+
+### Sem prompt
+# Esperado: 422 com errors: ["ai.prompt.invalid"]
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Prompt vazio
+# Esperado: 422 com errors: ["ai.prompt.invalid"]
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "prompt": "" }
+
+### Contexto acima do limite
+# Esperado: 422 com errors: ["ai.input.too_long"]
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./ai-context-too-long.json
+
+### Prompt acima do limite
+# Esperado: 422 com errors: ["ai.prompt.invalid"]
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./ai-prompt-too-long.json
+
+### Transcricao sem token
+# Esperado: 401
+POST {{baseUrl}}/ai/transcribe
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="audio"; filename="ai-silence.wav"
+Content-Type: audio/wav
+
+< ./ai-silence.wav
+--B--
+
+### Transcricao sem arquivo
+# Esperado: 422 com errors: ["ai.audio.required"]
+POST {{baseUrl}}/ai/transcribe
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="outro"
+
+x
+--B--
+
+### Transcricao com arquivo de texto
+# Esperado: 422 com errors: ["ai.audio.invalid_type"]
+POST {{baseUrl}}/ai/transcribe
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="audio"; filename="ai-not-audio.txt"
+Content-Type: text/plain
+
+< ./ai-not-audio.txt
+--B--
+
+### Transcricao de audio sem fala (requer OPENAI_API_KEY real)
+# Esperado: 502 com errors: ["ai.transcribe.empty"]
+# Sem chave valida: 502 com errors: ["ai.transcribe.failed"]
+POST {{baseUrl}}/ai/transcribe
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="audio"; filename="ai-silence.wav"
+Content-Type: audio/wav
+
+< ./ai-silence.wav
+--B--
+
+### Transcricao de audio com fala (requer OPENAI_API_KEY real)
+# Coloque um audio curto com fala em ./ai-speech.wav
+# Esperado: 200 com { "text": "..." } nao vazio
+POST {{baseUrl}}/ai/transcribe
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="audio"; filename="ai-speech.wav"
+Content-Type: audio/wav
+
+< ./ai-speech.wav
+--B--

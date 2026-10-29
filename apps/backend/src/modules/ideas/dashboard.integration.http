@@ -1,0 +1,153 @@
+@baseUrl = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+@password = Senha@12345
+@ownerEmail = dash{{scenarioVersion}}@example.com
+@otherEmail = outro{{scenarioVersion}}@example.com
+
+### Cadastro do usuario dono
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Maria Silva", "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+### Cadastro do outro usuario
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Joao Souza", "email": "{{otherEmail}}", "password": "{{password}}" }
+
+### Login do dono
+# @name loginOwner
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+###
+@ownerToken = {{loginOwner.response.body.token}}
+
+### Login do outro usuario
+# @name loginOther
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{otherEmail}}", "password": "{{password}}" }
+
+###
+@otherToken = {{loginOther.response.body.token}}
+
+### Sem token
+# Esperado: 401
+GET {{baseUrl}}/dashboard/summary
+
+### Resumo do usuario sem dados
+# Esperado: 200 com stats zerado, latestIdeas vazio e activity com 7 itens zerados
+GET {{baseUrl}}/dashboard/summary
+Authorization: Bearer {{otherToken}}
+
+### Criacao do primeiro tipo de ideia do dono
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "name": "Roteiro viral", "description": "Transforma uma ideia em roteiro curto.", "prompt": "Escreva uma frase sobre a ideia." }
+
+### Criacao do segundo tipo de ideia do dono
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "name": "Resumo de conteudo", "description": "Resume o conteudo de uma ideia.", "prompt": "Resuma a ideia em uma frase." }
+
+### Tipos de ideia do dono
+# @name typeList
+GET {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+
+###
+@ideaTypeId = {{typeList.response.body.items[0].id}}
+
+### Criacao da ideia 1 do dono
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia numero 1",
+  "description": "Descricao longa o bastante para a ideia 1.",
+  "objective": "Objetivo longo o bastante para a ideia 1.",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Criacao da ideia 2 do dono
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia numero 2",
+  "description": "Descricao longa o bastante para a ideia 2.",
+  "objective": "Objetivo longo o bastante para a ideia 2.",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Criacao da ideia 3 do dono
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia numero 3",
+  "description": "Descricao longa o bastante para a ideia 3.",
+  "objective": "Objetivo longo o bastante para a ideia 3.",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Resumo do dono
+# Esperado: 200 com stats { ideasCount: 3, ideaTypesCount: 2, processingsCount: 0 },
+# latestIdeas da mais nova para a mais antiga (updatedAt em ISO) e activity com 7 dias crescentes,
+# o ultimo com ideasCreated 3
+GET {{baseUrl}}/dashboard/summary
+Authorization: Bearer {{ownerToken}}
+
+### Resumo do outro usuario (isolamento)
+# Esperado: 200 sem nenhum dado do dono
+GET {{baseUrl}}/dashboard/summary
+Authorization: Bearer {{otherToken}}
+
+### Limite minimo
+# Esperado: 200 com 1 item em latestIdeas
+GET {{baseUrl}}/dashboard/summary?latestLimit=1
+Authorization: Bearer {{ownerToken}}
+
+### Limite maximo
+# Esperado: 200 com no maximo 20 itens em latestIdeas
+GET {{baseUrl}}/dashboard/summary?latestLimit=20
+Authorization: Bearer {{ownerToken}}
+
+### Limite zero
+# Esperado: 422 com errors: ["dashboard.latestLimit.invalid"]
+GET {{baseUrl}}/dashboard/summary?latestLimit=0
+Authorization: Bearer {{ownerToken}}
+
+### Limite acima do maximo
+# Esperado: 422 com errors: ["dashboard.latestLimit.invalid"]
+GET {{baseUrl}}/dashboard/summary?latestLimit=21
+Authorization: Bearer {{ownerToken}}
+
+### Limite nao inteiro
+# Esperado: 422 com errors: ["dashboard.latestLimit.invalid"]
+GET {{baseUrl}}/dashboard/summary?latestLimit=3.5
+Authorization: Bearer {{ownerToken}}
+
+### Limite nao numerico
+# Esperado: 422 com errors: ["dashboard.latestLimit.invalid"]
+GET {{baseUrl}}/dashboard/summary?latestLimit=abc
+Authorization: Bearer {{ownerToken}}

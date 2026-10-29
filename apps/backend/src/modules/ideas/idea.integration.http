@@ -1,0 +1,371 @@
+@baseUrl = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+@password = Senha@12345
+@ownerEmail = dono{{scenarioVersion}}@example.com
+@otherEmail = outro{{scenarioVersion}}@example.com
+
+### Cadastro do usuario dono
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Maria Silva", "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+### Cadastro do outro usuario
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Joao Souza", "email": "{{otherEmail}}", "password": "{{password}}" }
+
+### Login do dono
+# @name loginOwner
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+###
+@ownerToken = {{loginOwner.response.body.token}}
+
+### Login do outro usuario
+# @name loginOther
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{otherEmail}}", "password": "{{password}}" }
+
+###
+@otherToken = {{loginOther.response.body.token}}
+
+### Sem token
+# Esperado: 401
+GET {{baseUrl}}/ideas
+
+### Criacao do tipo de ideia do dono
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Roteiro viral",
+  "description": "Transforma uma ideia em roteiro curto.",
+  "prompt": "Crie um roteiro viral sobre {{name}}: {{description}}. Objetivo: {{objective}}."
+}
+
+### Listagem de tipos do dono
+# @name typeList
+GET {{baseUrl}}/idea-types?page=1&perPage=10
+Authorization: Bearer {{ownerToken}}
+
+###
+@ideaTypeId = {{typeList.response.body.items[0].id}}
+
+### Criacao valida
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "App de receitas",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Criacao com tipo de ideia inexistente
+# Esperado: 422 com errors: ["idea.ideaType.invalid"]
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "App de receitas",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+}
+
+### Criacao com tipo de ideia de outro usuario
+# Esperado: 422 com errors: ["idea.ideaType.invalid"]
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{otherToken}}
+Content-Type: application/json
+
+{
+  "name": "App de receitas",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Criacao com campos ausentes
+# Esperado: 422 com required para name, description, objective e ideaTypeId
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{}
+
+### Criacao com objetivo abaixo do limite
+# Esperado: 422 com errors: ["idea.objective.min.length"]
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "App de receitas",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "curto",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Listagem paginada do dono
+# Esperado: 200 com items, page, perPage e total
+# @name list
+GET {{baseUrl}}/ideas?page=1&perPage=10
+Authorization: Bearer {{ownerToken}}
+
+###
+@ideaId = {{list.response.body.items[0].id}}
+
+### Busca por id
+# Esperado: 200 com id, name, description, objective, ideaTypeId e updatedAt (sem userId)
+GET {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{ownerToken}}
+
+### Busca por id de outro usuario
+# Esperado: 404 com errors: ["idea.not_found"]
+GET {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{otherToken}}
+
+### Listagem do outro usuario
+# Esperado: 200 com items vazio e total 0
+GET {{baseUrl}}/ideas
+Authorization: Bearer {{otherToken}}
+
+### Atualizacao valida
+# Esperado: 200 sem corpo
+PUT {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "App de receitas v2",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Criacao do tipo de ideia do outro usuario
+# Esperado: 201 sem corpo (o outro usuario precisa de um tipo proprio para chegar ao 403)
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{otherToken}}
+Content-Type: application/json
+
+{
+  "name": "Resumo de conteudo",
+  "description": "Resume o conteudo de uma ideia.",
+  "prompt": "Resuma a ideia {{name}} em tres frases curtas."
+}
+
+### Tipo de ideia do outro usuario
+# @name otherTypeList
+GET {{baseUrl}}/idea-types
+Authorization: Bearer {{otherToken}}
+
+###
+@otherTypeId = {{otherTypeList.response.body.items[0].id}}
+
+### Atualizacao da ideia do dono pelo outro usuario
+# Esperado: 403 com errors: ["idea.forbidden"]
+PUT {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{otherToken}}
+Content-Type: application/json
+
+{
+  "name": "Tentativa indevida",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{otherTypeId}}"
+}
+
+### Exclusao por outro usuario
+# Esperado: 403 com errors: ["idea.forbidden"]
+DELETE {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{otherToken}}
+
+### Exclusao valida
+# Esperado: 200 sem corpo
+DELETE {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{ownerToken}}
+
+### Exclusao de id inexistente
+# Esperado: 404 com errors: ["idea.not_found"]
+DELETE {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{ownerToken}}
+
+### Recursos: criacao sem recursos
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia sem recursos",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}"
+}
+
+### Recursos: criacao com 1 recurso
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia com um recurso",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [{ "type": "text", "content": "Pesquisa de mercado", "position": 0 }]
+}
+
+### Recursos: criacao com 3 recursos
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia com recursos",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [
+    { "type": "text", "content": "Terceiro", "position": 2 },
+    { "type": "text", "content": "Primeiro", "position": 0 },
+    { "type": "text", "content": "Segundo", "position": 1 }
+  ]
+}
+
+### Recursos: listagem sem recursos
+# Esperado: 200 com items sem o campo resources
+# @name resourceList
+GET {{baseUrl}}/ideas?page=1&perPage=10
+Authorization: Bearer {{ownerToken}}
+
+###
+@resourceIdeaId = {{resourceList.response.body.items[0].id}}
+
+### Recursos: detalhe ordenado por position
+# @name resourceDetail
+# Esperado: 200 com resources [Primeiro, Segundo, Terceiro], cada um com id, type, content e position
+GET {{baseUrl}}/ideas/{{resourceIdeaId}}
+Authorization: Bearer {{ownerToken}}
+
+###
+@resourceFirstId = {{resourceDetail.response.body.resources[0].id}}
+
+### Recursos: atualizacao que altera, adiciona e remove
+# Esperado: 200 sem corpo (altera o Primeiro, mantem so ele e adiciona Novo)
+PUT {{baseUrl}}/ideas/{{resourceIdeaId}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia com recursos",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [
+    { "id": "{{resourceFirstId}}", "type": "text", "content": "Primeiro alterado", "position": 0 },
+    { "type": "text", "content": "Novo", "position": 1 }
+  ]
+}
+
+### Recursos: detalhe apos a atualizacao
+# Esperado: 200 com resources [Primeiro alterado, Novo]
+GET {{baseUrl}}/ideas/{{resourceIdeaId}}
+Authorization: Bearer {{ownerToken}}
+
+### Recursos: tipo nao suportado
+# Esperado: 422 com errors: ["idea.resource.type.unsupported"]
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia com tipo invalido",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [{ "type": "image", "content": "foto.png", "position": 0 }]
+}
+
+### Recursos: tipo ausente
+# Esperado: 422 com errors: ["idea.resource.type.required"]
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia sem tipo de recurso",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [{ "content": "Sem tipo", "position": 0 }]
+}
+
+### Recursos: conteudo vazio
+# Esperado: 422 com errors: ["idea.resource.content.required"]
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia com recurso vazio",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [{ "type": "text", "content": "", "position": 0 }]
+}
+
+### Recursos: 21 recursos
+# Esperado: 422 com errors: ["idea.resources.too_many"]
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Ideia com recursos demais",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [
+    { "type": "text", "content": "1", "position": 0 }, { "type": "text", "content": "2", "position": 1 },
+    { "type": "text", "content": "3", "position": 2 }, { "type": "text", "content": "4", "position": 3 },
+    { "type": "text", "content": "5", "position": 4 }, { "type": "text", "content": "6", "position": 5 },
+    { "type": "text", "content": "7", "position": 6 }, { "type": "text", "content": "8", "position": 7 },
+    { "type": "text", "content": "9", "position": 8 }, { "type": "text", "content": "10", "position": 9 },
+    { "type": "text", "content": "11", "position": 10 }, { "type": "text", "content": "12", "position": 11 },
+    { "type": "text", "content": "13", "position": 12 }, { "type": "text", "content": "14", "position": 13 },
+    { "type": "text", "content": "15", "position": 14 }, { "type": "text", "content": "16", "position": 15 },
+    { "type": "text", "content": "17", "position": 16 }, { "type": "text", "content": "18", "position": 17 },
+    { "type": "text", "content": "19", "position": 18 }, { "type": "text", "content": "20", "position": 19 },
+    { "type": "text", "content": "21", "position": 20 }
+  ]
+}
+
+### Recursos: exclusao da ideia com recursos
+# Esperado: 200 sem corpo
+DELETE {{baseUrl}}/ideas/{{resourceIdeaId}}
+Authorization: Bearer {{ownerToken}}
+
+### Recursos: consulta apos a exclusao
+# Esperado: 404 com errors: ["idea.not_found"]
+GET {{baseUrl}}/ideas/{{resourceIdeaId}}
+Authorization: Bearer {{ownerToken}}

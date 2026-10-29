@@ -1,0 +1,158 @@
+@baseUrl = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+@password = Senha@12345
+@ownerEmail = dono{{scenarioVersion}}@example.com
+@otherEmail = outro{{scenarioVersion}}@example.com
+
+### Cadastro do usuario dono
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Maria Silva", "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+### Cadastro do outro usuario
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Joao Souza", "email": "{{otherEmail}}", "password": "{{password}}" }
+
+### Login do dono
+# @name loginOwner
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+###
+@ownerToken = {{loginOwner.response.body.token}}
+
+### Login do outro usuario
+# @name loginOther
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{otherEmail}}", "password": "{{password}}" }
+
+###
+@otherToken = {{loginOther.response.body.token}}
+
+### Sem token
+# Esperado: 401
+GET {{baseUrl}}/idea-types
+
+### Criacao valida
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Roteiro viral",
+  "description": "Transforma uma ideia em roteiro curto.",
+  "prompt": "Crie um roteiro viral sobre {{name}}: {{description}}. Objetivo: {{objective}}."
+}
+
+### Listagem paginada do dono
+# Esperado: 200 com items, page, perPage e total
+# @name list
+GET {{baseUrl}}/idea-types?page=1&perPage=10
+Authorization: Bearer {{ownerToken}}
+
+###
+@ideaTypeId = {{list.response.body.items[0].id}}
+
+### Busca por id
+# Esperado: 200 com id, name, description, prompt e updatedAt
+GET {{baseUrl}}/idea-types/{{ideaTypeId}}
+Authorization: Bearer {{ownerToken}}
+
+### Busca por id de outro usuario
+# Esperado: 404 com errors: ["idea-type.not_found"]
+GET {{baseUrl}}/idea-types/{{ideaTypeId}}
+Authorization: Bearer {{otherToken}}
+
+### Listagem do outro usuario
+# Esperado: 200 com items vazio e total 0
+GET {{baseUrl}}/idea-types
+Authorization: Bearer {{otherToken}}
+
+### Criacao com campos ausentes
+# Esperado: 422 com required para name, description e prompt
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{}
+
+### Criacao com prompt abaixo do limite
+# Esperado: 422 com errors: ["idea-type.prompt.min.length"]
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Roteiro viral",
+  "description": "Transforma uma ideia em roteiro curto.",
+  "prompt": "curto"
+}
+
+### Atualizacao valida
+# Esperado: 200 sem corpo
+PUT {{baseUrl}}/idea-types/{{ideaTypeId}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Roteiro viral v2",
+  "description": "Transforma uma ideia em roteiro curto.",
+  "prompt": "Crie um roteiro viral sobre {{name}}: {{description}}."
+}
+
+### Atualizacao por outro usuario
+# Esperado: 403 com errors: ["idea-type.forbidden"]
+PUT {{baseUrl}}/idea-types/{{ideaTypeId}}
+Authorization: Bearer {{otherToken}}
+Content-Type: application/json
+
+{
+  "name": "Tentativa indevida",
+  "description": "Transforma uma ideia em roteiro curto.",
+  "prompt": "Crie um roteiro viral sobre {{name}}: {{description}}."
+}
+
+### Exclusao por outro usuario
+# Esperado: 403 com errors: ["idea-type.forbidden"]
+DELETE {{baseUrl}}/idea-types/{{ideaTypeId}}
+Authorization: Bearer {{otherToken}}
+
+### Exclusao valida
+# Esperado: 200 sem corpo
+DELETE {{baseUrl}}/idea-types/{{ideaTypeId}}
+Authorization: Bearer {{ownerToken}}
+
+### Exclusao de id inexistente
+# Esperado: 404 com errors: ["idea-type.not_found"]
+DELETE {{baseUrl}}/idea-types/{{ideaTypeId}}
+Authorization: Bearer {{ownerToken}}
+
+### Carregar tipos padrao sem token
+# Esperado: 401
+POST {{baseUrl}}/idea-types/load-defaults
+
+### Carregar tipos padrao (usuario sem tipos)
+# Esperado: 200 com { "loaded": 4 } (ou o tamanho atual da biblioteca)
+# Use o token de um usuario sem nenhum Tipo de Ideia (o outro usuario, apos a limpeza acima)
+POST {{baseUrl}}/idea-types/load-defaults
+Authorization: Bearer {{otherToken}}
+
+### Carregar tipos padrao de novo (idempotencia)
+# Esperado: 200 com { "loaded": 0 }
+POST {{baseUrl}}/idea-types/load-defaults
+Authorization: Bearer {{otherToken}}
+
+### Total apos a segunda chamada
+# Esperado: total igual ao da primeira carga (sem duplicacao)
+GET {{baseUrl}}/idea-types?page=1&perPage=10
+Authorization: Bearer {{otherToken}}

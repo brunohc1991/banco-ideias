@@ -1,0 +1,14 @@
+model User {
+  id          String       @id
+  name        String
+  email       String       @unique
+  password    String
+  createdAt   DateTime
+  updatedAt   DateTime
+  deletedAt   DateTime?
+  ideaTypes   IdeaType[]
+  ideas       Idea[]
+  processings Processing[]
+
+  @@map("users")
+}

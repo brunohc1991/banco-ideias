@@ -1,0 +1,24 @@
+name: ideias-banco-ideias-backend-db
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ideias-banco-ideias-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ideias_banco_ideias
+      POSTGRES_PASSWORD: docker
+      POSTGRES_DB: ideias_banco_ideias_db
+    ports:
+      - '5847:5432'
+    volumes:
+      - ideias-banco-ideias-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ideias_banco_ideias']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ideias-banco-ideias-postgres-data:
+    driver: local

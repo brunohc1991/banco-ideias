@@ -1,0 +1,214 @@
+@baseUrl = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+@password = Senha@12345
+@ownerEmail = proc{{scenarioVersion}}@example.com
+@otherEmail = outro{{scenarioVersion}}@example.com
+
+### Cadastro do usuario dono
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Maria Silva", "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+### Cadastro do outro usuario
+# Esperado: 201
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Joao Souza", "email": "{{otherEmail}}", "password": "{{password}}" }
+
+### Login do dono
+# @name loginOwner
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{ownerEmail}}", "password": "{{password}}" }
+
+###
+@ownerToken = {{loginOwner.response.body.token}}
+
+### Login do outro usuario
+# @name loginOther
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{otherEmail}}", "password": "{{password}}" }
+
+###
+@otherToken = {{loginOther.response.body.token}}
+
+### Sem token
+# Esperado: 401
+GET {{baseUrl}}/processings
+
+### Criacao do tipo de ideia do dono
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "Roteiro viral",
+  "description": "Transforma uma ideia em roteiro curto.",
+  "prompt": "Voce escreve roteiros curtos em portugues. Ideia: {{name}}. Descricao: {{description}}. Objetivo: {{objective}}. Apoio:\n{{resources}}\nResponda em Markdown com no maximo 5 linhas."
+}
+
+### Tipos de ideia do dono
+# @name typeList
+GET {{baseUrl}}/idea-types
+Authorization: Bearer {{ownerToken}}
+
+###
+@ideaTypeId = {{typeList.response.body.items[0].id}}
+
+### Criacao da ideia com um recurso
+# Esperado: 201 sem corpo
+POST {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "name": "App de receitas",
+  "description": "Aplicativo que sugere receitas com o que ha na geladeira.",
+  "objective": "Reduzir o desperdicio de comida em casa.",
+  "ideaTypeId": "{{ideaTypeId}}",
+  "resources": [{ "type": "text", "content": "Publico: familias", "position": 0 }]
+}
+
+### Ideias do dono
+# @name ideaList
+GET {{baseUrl}}/ideas
+Authorization: Bearer {{ownerToken}}
+
+###
+@ideaId = {{ideaList.response.body.items[0].id}}
+
+### Criacao de Processamento com ideia inexistente
+# Esperado: 422 com errors: ["processing.idea.invalid"]
+POST {{baseUrl}}/processings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "ideaId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }
+
+### Criacao de Processamento com ideia de outro usuario
+# Esperado: 422 com errors: ["processing.idea.invalid"]
+POST {{baseUrl}}/processings
+Authorization: Bearer {{otherToken}}
+Content-Type: application/json
+
+{ "ideaId": "{{ideaId}}" }
+
+### Criacao de Processamento (requer ANTHROPIC_API_KEY real)
+# Esperado: 201 com uma iteracao de position 0, refinement null e result nao vazio
+# Sem chave configurada: 502 com errors: ["ai.generate.failed"]
+# @name created
+POST {{baseUrl}}/processings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "ideaId": "{{ideaId}}" }
+
+###
+@processingId = {{created.response.body.id}}
+
+### Refinamento vazio
+# Esperado: 422 com errors: ["processing.refinement.required"]
+POST {{baseUrl}}/processings/{{processingId}}/iterations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "refinement": "" }
+
+### Refinamento curto demais
+# Esperado: 422 com errors: ["processing.refinement.min.length"]
+POST {{baseUrl}}/processings/{{processingId}}/iterations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "refinement": "ab" }
+
+### Refinamento longo demais
+# Esperado: 422 com errors: ["processing.refinement.max.length"]
+POST {{baseUrl}}/processings/{{processingId}}/iterations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+< ./processing-refinement-too-long.json
+
+### Refinamento valido (requer ANTHROPIC_API_KEY real)
+# Esperado: 201 com id, refinement, result, position 1 e createdAt
+POST {{baseUrl}}/processings/{{processingId}}/iterations
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "refinement": "Deixe mais curto e informal" }
+
+### Refinamento por outro usuario
+# Esperado: 404 com errors: ["processing.not_found"]
+POST {{baseUrl}}/processings/{{processingId}}/iterations
+Authorization: Bearer {{otherToken}}
+Content-Type: application/json
+
+{ "refinement": "Tentativa indevida" }
+
+### Detalhe do dono
+# Esperado: 200 com snapshot, resources e iterations ordenadas, sem userId nem prompt
+GET {{baseUrl}}/processings/{{processingId}}
+Authorization: Bearer {{ownerToken}}
+
+### Detalhe por outro usuario
+# Esperado: 404 com errors: ["processing.not_found"]
+GET {{baseUrl}}/processings/{{processingId}}
+Authorization: Bearer {{otherToken}}
+
+### Listagem do dono
+# Esperado: 200 com items (iterationsCount, sem iterations nem resources), page, perPage e total
+GET {{baseUrl}}/processings?page=1&perPage=10
+Authorization: Bearer {{ownerToken}}
+
+### Listagem do outro usuario
+# Esperado: 200 com items vazio e total 0
+GET {{baseUrl}}/processings
+Authorization: Bearer {{otherToken}}
+
+### Busca de ideia com termo
+# Esperado: 200 com as ideias do dono cujo nome ou tipo contem o termo
+GET {{baseUrl}}/processings/idea-search?term=RECEI
+Authorization: Bearer {{ownerToken}}
+
+### Busca de ideia com termo vazio
+# Esperado: 200 com as 20 ideias mais recentes do dono
+GET {{baseUrl}}/processings/idea-search?term=
+Authorization: Bearer {{ownerToken}}
+
+### Busca de ideia sem resultado
+# Esperado: 200 com lista vazia
+GET {{baseUrl}}/processings/idea-search?term=zzz
+Authorization: Bearer {{ownerToken}}
+
+### Exclusao de ideia com processamento
+# Esperado: 409 com errors: ["idea.has_processings"]
+DELETE {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{ownerToken}}
+
+### Exclusao do processamento por outro usuario
+# Esperado: 404 com errors: ["processing.not_found"]
+DELETE {{baseUrl}}/processings/{{processingId}}
+Authorization: Bearer {{otherToken}}
+
+### Exclusao do processamento pelo dono
+# Esperado: 204 sem corpo
+DELETE {{baseUrl}}/processings/{{processingId}}
+Authorization: Bearer {{ownerToken}}
+
+### Detalhe apos a exclusao
+# Esperado: 404 com errors: ["processing.not_found"]
+GET {{baseUrl}}/processings/{{processingId}}
+Authorization: Bearer {{ownerToken}}
+
+### Exclusao da ideia depois de apagar os processamentos
+# Esperado: 200 sem corpo
+DELETE {{baseUrl}}/ideas/{{ideaId}}
+Authorization: Bearer {{ownerToken}}

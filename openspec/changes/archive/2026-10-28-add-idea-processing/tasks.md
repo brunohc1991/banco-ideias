@@ -1,0 +1,35 @@
+# Tasks
+
+## 1. Domínio (agregado `processing`)
+
+- [x] 1.1 Criar o agregado `processing` no módulo `ideas` (`module-aggregate`) e a porta de IA do módulo (`AiProvider` com `generate({ systemPrompt, userMessage })`), exportados pelo módulo. Verificar com `tsc` do módulo limpo.
+- [x] 1.2 Criar a entidade interna `ProcessingIteration` (`module-entity`: `refinement` nulo ou de 3 a 2000, `result` de 1 a 50000, `position` inteiro >= 0) e a entidade `Processing` (`module-entity`) com `userId`, `ideaId`, snapshot (`ideaName`, `ideaDescription`, `ideaObjective`, `ideaTypeId`, `ideaTypeName`, `promptTemplate`), `resources` do snapshot e `iterations`, validando de 1 a 50 iterações (`processing.iterations.required` e `processing.iterations.too_many`) e delegando a cada item. Verificar com testes de cada campo, limites, snapshot de recursos inválido e coleção de iterações.
+- [x] 1.3 Criar o compositor de prompt (marcadores `{{name}}`, `{{description}}`, `{{objective}}` e `{{resources}}` em uma única passada, recursos como lista numerada, marcador desconhecido literal, e mensagem de refinamento com o histórico e o pedido atual). Verificar com teste isolado dos quatro marcadores, recursos vazios, lista numerada, marcador desconhecido, valor que contém marcador e formato do histórico.
+- [x] 1.4 Definir o repositório (`module-repository`) com `create`, `appendIteration`, `delete`, `findById`, `findPage({ userId, page, perPage })` com contagem de iterações, `searchIdeas({ userId, term })` e a consulta de existência de Processamentos de uma Ideia, e o `FakeProcessingRepository`. Verificar com `tsc` limpo e testes do fake.
+- [x] 1.5 Implementar `StartProcessing` (`module-use-case`): valida Ideia e tipo (`processing.idea.invalid`), monta o snapshot, chama a IA com o prompt composto, cria a iteração 0 e persiste. Verificar com testes de Ideia sem e com 3 recursos, inexistente, de outro usuário, falha da IA sem salvar, snapshot independente de edição posterior e substituição dos marcadores.
+- [x] 1.6 Implementar `RefineProcessing`: busca com 404 para inexistente ou alheio, valida o refinamento, o limite de 50, compõe o prompt com o histórico, chama a IA e anexa a iteração. Verificar com testes de 2ª e 3ª iteração, refinamento vazio, curto e longo, 404 inexistente e alheio, limite de 50 e falha da IA sem alterar o histórico.
+- [x] 1.7 Implementar `DeleteProcessing` e estender `DeleteIdea` para recusar com `DomainError('idea.has_processings', 409)` a Ideia que tenha Processamentos. Verificar com testes de exclusão do dono, inexistente e alheio (404), e de `DeleteIdea` com e sem Processamentos, com cobertura de 100% nos arquivos novos e alterados do módulo.
+
+## 2. Back-end
+
+- [x] 2.1 Sincronizar o Prisma (`backend-prisma-sync-module`) com os models `Processing`, `ProcessingIteration` e `ProcessingResource` e as relações inversas em `Idea` e `User` (Ideia com `Restrict`, demais em cascata, índice único de `processingId` e `position` nas iterações), e aplicar a migration `processings`. Verificar com as tabelas criadas no banco.
+- [x] 2.2 Implementar `PrismaProcessingRepository` (`backend-prisma-repository`): `create` transacional, `appendIteration` transacional com atualização de `updatedAt`, `delete`, `findById` com iterações e recursos ordenados, `findPage` com contagem, `searchIdeas` com busca sem diferenciar maiúsculas, limite de 20 e ordenação por alteração, e a consulta de existência por Ideia. Verificar com `npx tsc --noEmit` limpo no backend.
+- [x] 2.3 Criar o adaptador da IA no módulo `ideas` que implementa a porta do módulo e delega ao `AiProvider` do módulo `ai`, registrado sob o token da porta, importando o `AiModule`. Verificar com teste do adaptador usando um provedor falso.
+- [x] 2.4 Criar `processing.controller.ts` (`backend-nest-controller`) com `POST /processings`, `POST /:id/iterations`, `DELETE /:id` (204), `GET /idea-search` (declarado antes de `/:id`), `GET /:id` e `GET /` por `page` e `perPage`, respostas mapeadas sem `userId` nem prompt, e 404 para Processamento alheio; e ajustar o `DELETE /ideas/:id` para devolver 409 `idea.has_processings`. Verificar com chamadas reais ao backend usando um provedor de IA falso ou a chave real.
+- [x] 2.5 Criar `processing.integration.http` com os cenários da spec (criação, Ideia inexistente e de outro usuário, refinamento válido, vazio e longo, detalhe do dono e de outro usuário, listagem, busca com termo e vazia, exclusão do dono e de outro usuário, e exclusão de Ideia com Processamento). Verificar executando os cenários que não dependem da IA e, com a chave real configurada pelo usuário, os de geração, anotando tempos e trechos.
+- [x] 2.6 Adicionar em `messages.pt.ts` e `messages.en.ts` as chaves `processing.idea.invalid`, `processing.not_found`, `processing.iterations.required`, `processing.iterations.too_many`, `processing.refinement.{required,min.length,max.length}`, as chaves de validação do snapshot e `idea.has_processings`. Verificar com `npx tsc --noEmit` limpo no front-end.
+
+## 3. Front-end
+
+- [x] 3.1 Criar os tipos e a API de Processamentos (iniciar, refinar, excluir, consultar, listar e buscar Ideias) com o mesmo padrão de erro dos demais wrappers. Verificar com `npx tsc --noEmit` limpo.
+- [x] 3.2 Instalar `react-markdown`, `remark-gfm` e `@tailwindcss/typography` (se ainda não estiverem) e ativar o plugin no CSS global. Verificar com o build do front-end sem erros.
+- [x] 3.3 Criar o componente de busca de Ideia (pausa de 300 ms, 20 mais recentes ao abrir, resultados clicáveis com o tipo) e a tela `/processings/new` com seleção, "Processar" com progresso e redirecionamento. Verificar no navegador a busca, a seleção e a criação com sucesso e com erro.
+- [x] 3.4 Criar a listagem `/processings` (tabela, paginação, estado vazio, "Novo Processamento", excluir com confirmação). Verificar no navegador com e sem registros.
+- [x] 3.5 Criar o detalhe `/processings/[id]` (cabeçalho, resumo recolhido, timeline com Markdown em tema escuro, rodapé de refinamento com progresso e rolagem até a nova iteração). Verificar no navegador criando uma iteração e vendo o Markdown formatado.
+- [x] 3.6 Adicionar o item "Processamentos" ao menu, abaixo de "Ideias", com destaque por prefixo, e exibir o toaster de `idea.has_processings` ao excluir uma Ideia com Processamentos. Verificar o item ativo e a mensagem no navegador.
+
+## 4. Memória e validação integrada
+
+- [x] 4.1 Registrar em `openspec/memory/modulos.md`, `openspec/memory/modules/ideas.md` e `openspec/memory/contexto-tecnico.md` o agregado `processing` (snapshot, iterações, composição do prompt em duas fases, adaptador da IA, trava de exclusão de Ideia). Verificar relendo os três arquivos.
+- [x] 4.2 Rodar `npx tsc --noEmit` e o build do front-end, o build e os testes do backend e dos módulos, todos sem erros.
+- [x] 4.3 Validar no navegador e registrar evidência: busca e criação de Processamento, refinamentos sucessivos com rolagem, Markdown formatado, listagem com contagem, exclusão, erro ao excluir Ideia com Processamento e, com a chave real, tempos e trechos de resultado.

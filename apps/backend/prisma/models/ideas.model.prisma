@@ -1,0 +1,97 @@
+model IdeaType {
+  id          String    @id
+  name        String
+  description String
+  prompt      String    @db.Text
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  ideas       Idea[]
+  createdAt   DateTime
+  updatedAt   DateTime
+  deletedAt   DateTime?
+
+  @@index([userId])
+  @@map("idea_types")
+}
+
+model Idea {
+  id          String       @id
+  name        String
+  description String       @db.Text
+  objective   String       @db.Text
+  ideaTypeId  String
+  ideaType    IdeaType     @relation(fields: [ideaTypeId], references: [id], onDelete: Restrict)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt   DateTime
+  updatedAt   DateTime
+  resources   Resource[]
+  processings Processing[]
+  deletedAt   DateTime?
+
+  @@index([userId])
+  @@index([ideaTypeId])
+  @@map("ideas")
+}
+
+model Resource {
+  id        String   @id
+  ideaId    String
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  type      String
+  content   String   @db.Text
+  position  Int
+  createdAt DateTime
+  updatedAt DateTime
+
+  @@index([ideaId, position])
+  @@map("resources")
+}
+
+model Processing {
+  id              String                @id
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ideaId          String
+  idea            Idea                  @relation(fields: [ideaId], references: [id], onDelete: Restrict)
+  ideaName        String
+  ideaDescription String                @db.Text
+  ideaObjective   String                @db.Text
+  ideaTypeId      String
+  ideaTypeName    String
+  promptTemplate  String                @db.Text
+  resources       ProcessingResource[]
+  iterations      ProcessingIteration[]
+  createdAt       DateTime
+  updatedAt       DateTime
+
+  @@index([userId, updatedAt])
+  @@index([ideaId])
+  @@map("processings")
+}
+
+model ProcessingIteration {
+  id           String     @id
+  processingId String
+  processing   Processing @relation(fields: [processingId], references: [id], onDelete: Cascade)
+  refinement   String?    @db.Text
+  result       String     @db.Text
+  position     Int
+  createdAt    DateTime
+  updatedAt    DateTime
+
+  @@unique([processingId, position])
+  @@map("processing_iterations")
+}
+
+model ProcessingResource {
+  id           String     @id @default(uuid())
+  processingId String
+  processing   Processing @relation(fields: [processingId], references: [id], onDelete: Cascade)
+  type         String
+  content      String     @db.Text
+  position     Int
+
+  @@index([processingId, position])
+  @@map("processing_resources")
+}
