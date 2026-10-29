@@ -15,13 +15,19 @@ dados: tudo o que existe no produto pertence a um usuário específico.
 ## Regras de negócio relevantes
 
 - **Cadastro** cria uma conta nova com a senha protegida (nunca armazenada em texto
-  legível).
-- **Login** confere as credenciais informadas. Quando estão corretas, devolve apenas a
-  identificação básica do usuário (quem ele é); quando estão erradas, recusa o acesso sem
-  revelar qual parte falhou.
+  legível). Exige nome de pessoa (3 a 80 caracteres), e-mail válido e senha forte. Todos os
+  problemas de preenchimento são informados juntos, não um por vez.
+- O **e-mail identifica a conta** e não pode se repetir: tentar cadastrar um e-mail já
+  existente é recusado como conflito.
+- **Login** confere o e-mail e a senha informados. Quando estão corretos, devolve apenas a
+  identificação básica do usuário (quem ele é: id, nome e e-mail); quando estão errados,
+  recusa o acesso com uma única mensagem, sem revelar se o e-mail existe ou se a senha é
+  que falhou.
 - O módulo **não decide como a sessão se mantém depois do login**. Ele responde "estas
-  credenciais conferem ou não" — a forma de manter o usuário logado entre requisições é
+  credenciais conferem ou não": a forma de manter o usuário logado entre requisições é
   uma decisão de infraestrutura da aplicação, fora do escopo de negócio.
+- Todo dado de negócio dos outros módulos (Tipos, Ideias, Processamentos) é filtrado pelo
+  usuário autenticado: ninguém enxerga nem altera dados de outra conta.
 
 ## Fronteiras
 

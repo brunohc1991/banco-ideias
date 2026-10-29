@@ -5,7 +5,7 @@ não técnica, do que cada módulo faz e por que existe. O detalhamento de conce
 de negócio de cada módulo fica no markdown próprio dentro de `modules/`.
 
 O produto tem **apenas dois módulos de negócio**: **Autenticação** e **Ideias**. Não há
-previsão de um terceiro — novas funcionalidades entram como uma nova área dentro de um
+previsão de um terceiro: novas funcionalidades entram como uma nova área dentro de um
 desses dois módulos. A integração com Inteligência Artificial é tratada como
 **infraestrutura**, não como módulo de negócio.
 
@@ -31,8 +31,9 @@ entrada. Reúne quatro áreas de negócio relacionadas: Tipos de Ideia, Ideias,
 Processamentos e o Dashboard.
 
 - Onde está fisicamente: `modules/ideas`
-- Agregados: `idea-type`, `idea` (com Recursos como entidade interna), `processing` (snapshot + iterações) e `dashboard`.
-- `dashboard` é um agregado **somente de leitura**: sem entidade nem repositório próprio, só os tipos do resumo e o caso de uso `LoadDashboardSummary`, que consome consultas de contagem e de atividade (últimos 7 dias, em UTC) dos repositórios de Ideia, Tipo de Ideia e Processamento. Registros excluídos não contam.
+- Áreas: Tipos de Ideia, Ideias (com seus Recursos), Processamentos (com o histórico de
+  iterações) e Dashboard. O Dashboard é somente leitura: resume o que existe nas outras
+  três áreas, sem criar nem alterar nada.
 - Detalhes de negócio: [modules/ideas.md](modules/ideas.md)
 
 ---
@@ -42,4 +43,7 @@ Processamentos e o Dashboard.
 A geração e o refinamento de texto, além da transcrição de voz, são fornecidos por uma
 camada de infraestrutura genérica que não conhece os conceitos do produto (Ideia, Tipo,
 Processamento). O módulo de Ideias apenas consome essa capacidade através de um contrato
-abstrato, o que permite trocar o provedor de IA sem afetar as regras de negócio.
+abstrato, o que permite trocar o provedor de IA sem afetar as regras de negócio. Hoje a
+geração de texto usa um provedor e a transcrição de voz usa outro, cada um por trás de
+seu próprio contrato. Detalhes técnicos em [contexto-tecnico.md](contexto-tecnico.md) e
+a localização dos arquivos em [estrutura.md](estrutura.md).
